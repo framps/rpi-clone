@@ -583,9 +583,16 @@ get_src_disk()
 	}
 
 
+# Starting with bookworm /boot/firmware/cmdline.txt is used. All previous RaspbianOS releases use /boot/cmdline.txt
+cmdlinedir=$(mount | awk '$3 ~ "^/boot(/firmware)?$" && $5 == "vfat" { print substr($3, 2); exit }' )
+if [[ -z "$cmdlinedir" ]]; then
+	echo "Unable to locate boot device"
+	exit 1
+fi
+
 # ==== source (booted) disk info and default mount list
 #
-src_boot_dev=`findmnt /boot -o source -n | grep "/dev/"`
+src_boot_dev=`findmnt /$cmdlinedir -o source -n | grep "/dev/"`
 src_root_dev=`findmnt / -o source -n | grep "/dev/"`
 SD_slot_boot=0
 SD_slot_dst=0
@@ -593,7 +600,6 @@ src_part_base=""
 
 boot_part_num=0
 alt_root_part_num=0
-
 
 if [ "$src_boot_dev" == "" ]
 then
@@ -938,13 +944,6 @@ if ((usage_error))
 then
 	echo ""
     exit 1
-fi
-
-# Starting with bookworm /boot/firmware/cmdline.txt is used. All previous RaspbianOS releases use /boot/cmdline.txt
-cmdlinedir=$(mount | awk '$3 ~ "^/boot(/firmware)?$" && $5 == "vfat" { print substr($3, 2); exit }' )
-if [[ -z "$cmdlinedir" ]]; then
-	echo "Unable to locate boot device"
-	exit 1
 fi
 
 if ((convert_to_partuuid))

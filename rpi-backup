@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# proof of concept to use rpi-clone to create a backup file
+#
+# Invocation:
+# rpi-backup <backupFilename> <rpi-clone options-without target device>
+# Example: rpi-backup /backup/rpi-clone.dd -f
+#
+# Note: Shrink of final image is tbd
+
+imageFilename="$1"
+shift
+
+spaceUsed=$(df | grep "% /$" | awk '{print $3}')
+backupFileSize=$(( (${spaceUsed} + (${spaceUsed} * 25 / 100 ) ) * 1024 ))
+
+truncate -s ${backupFileSize} "${imageFilename}"
+
+loopDevice=$(losetup -f)
+
+losetup ${loopDevice} "${imageFilename}"
+shift
+targetDeviceName=${loopDevice#"/dev/"}
+rpi-clone $targetDeviceName $@
+
+# now image has to be shrinked somehow
+
+losetup -d ${loopDevice}
+
+
+

@@ -10,7 +10,7 @@
 # This updated code is located in a fork of Bill Wilson's git repository
 # at https://github.com/geerlingguy/rpi-clone
 
-version=2.0.23
+version=2.0.23-detectErrors
 
 # setup trusted paths for dependancies (like rsync, grub, fdisk, etc)
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -27,6 +27,24 @@ if [ `id -u` != 0 ]
 then
     echo -e "$PGM needs to be run as root.\n"
     exit 1
+fi
+
+if [[ -v RPI_CLONE_DEBUG ]]; then
+
+	set -euo pipefail
+
+	function err() {
+	   local exitCode=$?
+	   echo "??? Unexpected error occured (RC: $exitCode)"
+	   local i=0
+	   local FRAMES=${#BASH_LINENO[@]}
+	   for ((i=FRAMES-2; i>=0; i--)); do
+		  echo '  File' \"${BASH_SOURCE[i+1]}\", line ${BASH_LINENO[i]}, in ${FUNCNAME[i+1]}
+		  sed -n "${BASH_LINENO[i]}{s/^/    /;p}" "${BASH_SOURCE[i+1]}"
+	   done
+	}
+
+	trap 'err' ERR
 fi
 
 rpios=0

@@ -10,7 +10,7 @@
 # This updated code is located in a fork of Bill Wilson's git repository
 # at https://github.com/geerlingguy/rpi-clone
 
-version=2.0.23-detectErrors
+version=2.0.23-detectRuntimeErrors
 
 # setup trusted paths for dependancies (like rsync, grub, fdisk, etc)
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -29,23 +29,20 @@ then
     exit 1
 fi
 
-if [[ -v RPI_CLONE_DEBUG ]]; then
+set -euo pipefail
 
-	set -euo pipefail
+function err() {
+   local exitCode=$?
+   echo "??? Unexpected error occured (RC: $exitCode)"
+   local i=0
+   local FRAMES=${#BASH_LINENO[@]}
+   for ((i=FRAMES-2; i>=0; i--)); do
+	  echo '  File' \"${BASH_SOURCE[i+1]}\", line ${BASH_LINENO[i]}, in ${FUNCNAME[i+1]}
+	  sed -n "${BASH_LINENO[i]}{s/^/    /;p}" "${BASH_SOURCE[i+1]}"
+   done
+}
 
-	function err() {
-	   local exitCode=$?
-	   echo "??? Unexpected error occured (RC: $exitCode)"
-	   local i=0
-	   local FRAMES=${#BASH_LINENO[@]}
-	   for ((i=FRAMES-2; i>=0; i--)); do
-		  echo '  File' \"${BASH_SOURCE[i+1]}\", line ${BASH_LINENO[i]}, in ${FUNCNAME[i+1]}
-		  sed -n "${BASH_LINENO[i]}{s/^/    /;p}" "${BASH_SOURCE[i+1]}"
-	   done
-	}
-
-	trap 'err' ERR
-fi
+trap 'err' ERR
 
 rpios=0
 rpios_recent=0
@@ -603,8 +600,9 @@ get_src_disk()
 
 # ==== source (booted) disk info and default mount list
 #
-src_boot_dev=`findmnt /boot -o source -n | grep "/dev/"`
-src_root_dev=`findmnt / -o source -n | grep "/dev/"`
+src_boot_dev=`findmnt /boot -o source -n | grep "/dev/" || true`
+src_root_dev=`findmnt / -o source -n | grep "/dev/" || true`
+
 SD_slot_boot=0
 SD_slot_dst=0
 src_part_base=""
@@ -694,7 +692,7 @@ fi
 
 for ((p = 1; p <= n_src_parts; p++))
 do
-	line=$(echo "$src_partition_table" | grep -e "^${p}:")
+	line=$(echo "$src_partition_table" | grep -e "^${p}:" || true)
 	if [ "$line" == "" ]
 	then
 		src_exists[p]=0
@@ -717,8 +715,10 @@ do
 
 	part_type=$(echo "$line" | cut -d ":" -f 5)
 
+	set +u
 	src_mounted_dir[p]=$(echo "$src_mount_table" \
-						| grep -m 1 -e "^${src_device[p]}" | cut -d " " -f 2)
+						| grep -m 1 -e "^${src_device[p]}" | cut -d " " -f 2 || true)
+	set -u
 	if [ "${src_mounted_dir[p]}" != "" ]
 	then
 		src_sync_part[p]=1
@@ -785,8 +785,9 @@ custom_sync=0
 leave_sd_usb_boot=0
 convert_to_partuuid=0
 p1_size_new=0
+exclude_useropt=""
 
-while [ "$1" ]
+while (( $# > 0 ))
 do
 	case "$1" in
 		-v|--verbose)
@@ -919,12 +920,14 @@ do
 			usage
 			;;
 		*)
+			set +u
 			if [ "$dst_disk" != "" ]
 			then
 				echo "Bad arg: $1"
 				echo "Run $PGM with -h or no args for usage."
 				exit 1
 			fi
+			set -u
 			dst_disk=$1
 			dir=`expr substr $dst_disk 1 5`
 			if [ "$dir" == "/dev/" ]
@@ -1125,7 +1128,7 @@ dst_disk_size=$(echo "$dst_partition_table" \
 dst_root_dev=/dev/${dst_part_base}${root_part_num}
 
 dst_mount_table=$(findmnt -o source,target -n -l \
-				| grep "^/dev/$dst_disk" | tr -s " ")
+				| grep "^/dev/$dst_disk" | tr -s " " || true)
 
 dst_fdisk_table=$(fdisk -l /dev/$dst_disk | grep "^/dev/")
 line=$(echo "$dst_fdisk_table" | grep "Extended")
@@ -1139,7 +1142,7 @@ fi
 
 for ((p = 1; p <= n_dst_parts; p++))
 do
-	line=$(echo "$dst_partition_table" | grep -e "^${p}:")
+	line=$(echo "$dst_partition_table" | grep -e "^${p}:" || true)
 	if [ "$line" == "" ]
 	then
 		dst_exists[p]=0
@@ -1259,20 +1262,20 @@ do
 		continue
 	fi
 	dir=$(echo "$dst_mount_table" \
-				| grep -e "^${dst_device[p]}" | cut -d " " -f 2)
+				| grep -e "^${dst_device[p]}" | cut -d " " -f 2 || true)
 	unmount_or_abort "$dir" \
 "Destination disk partition ${dst_device[p]} is mounted on $dir."
 done
 
-mounted_dev=$(findmnt $clone -o source -n)
+mounted_dev=$(findmnt $clone -o source -n || true)
 unmount_or_abort "$mounted_dev" \
 			"Directory $clone is already mounted with $mounted_dev."
 
-mounted_dev=$(findmnt $clone_src -o source -n)
+mounted_dev=$(findmnt $clone_src -o source -n || true)
 unmount_or_abort "$mounted_dev" \
 			"Directory $clone_src is already mounted with $mounted_dev."
 
-mounted_dev=$(findmnt /mnt -o source -n)
+mounted_dev=$(findmnt /mnt -o source -n || true)
 unmount_or_abort "$mounted_dev" "$mounted_dev is currently mounted on /mnt."
 
 
@@ -1289,7 +1292,7 @@ fi
 #
 if [ -f /etc/dphys-swapfile ]
 then
-	swapfile=`cat /etc/dphys-swapfile | grep ^CONF_SWAPFILE | cut -f 2 -d=`
+	swapfile=`cat /etc/dphys-swapfile | grep ^CONF_SWAPFILE | cut -f 2 -d= || true`
 	if [ "$swapfile" = "" ]
 	then
 		swapfile=/var/swap

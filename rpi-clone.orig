@@ -10,7 +10,14 @@
 # This updated code is located in a fork of Bill Wilson's git repository
 # at https://github.com/geerlingguy/rpi-clone
 
-version=2.0.25-detectRuntimeErrors
+<<<<<<< HEAD
+version=2.0.23-detectRuntimeErrors
+=======
+version=2.0.25
+
+# prefix debug statements with line numbers when -x is used 
+declare -r PS4='|${LINENO}> \011${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
+>>>>>>> master
 
 # setup trusted paths for dependancies (like rsync, grub, fdisk, etc)
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"

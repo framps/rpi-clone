@@ -31,6 +31,9 @@ fi
 
 set -euo pipefail
 
+# initialize vars
+dst_disk=""
+
 function err() {
    local exitCode=$?
    echo "??? Unexpected error occured (RC: $exitCode)"
@@ -753,8 +756,7 @@ Don't know how to partition the destination disk!
 	exit 1
 fi
 
-
-line=$(echo "$src_fdisk_table" | grep "Extended")
+line=$(echo "$src_fdisk_table" | grep "Extended" || true)
 if [ "$line" != "" ]
 then
 	dev=$(echo "$line" | cut -d " " -f 1)

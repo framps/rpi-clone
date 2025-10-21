@@ -667,7 +667,11 @@ src_part_base=""
 
 boot_part_num=0
 alt_root_part_num=0
-
+if fdisk -l $src_boot_dev | grep -q gpt; then
+        partition_type="mbr"
+else
+        partition_type="gpt"
+fi
 
 if [ "$src_boot_dev" == "" ]
 then
@@ -725,7 +729,8 @@ src_disk_size=$(echo "$src_partition_table" \
 				| grep "^/dev/$src_disk" | cut -d ":" -f 2 | tr -d 's')
 
 line=$(fdisk -l /dev/$src_disk | grep "Disk identifier:")
-src_disk_ID=${line#*x}
+src_disk_ID=${line#*x}		# handle mbr case
+src_disk_ID="$(sed 's/Disk identifier: //' <<< "$src_disk_ID")" # handle gpt case
 
 src_mount_table=$(findmnt -o source,target -n -l \
 				| grep -e "^/dev/$src_disk" -e "^$src_root_dev" | tr -s " ")
@@ -1354,6 +1359,9 @@ then
 		swapfile=/var/swap
 	fi
 	exclude_swapfile="--exclude $swapfile"
+elif [ -f /var/swap ]
+then
+	exclude_swapfile="--exclude /var/swap"
 fi
 
 if ((grub_auto)) && [ -d /boot/grub ] && command -v grub-install
@@ -1542,8 +1550,13 @@ Use -U for unattended even if initializing.
 			printf "    Try running $PGM again.\n\n"
 
 			# Don't let dst disk keep source disk ID.  Can lead to remounts.
-			new_id=$(od -A n -t x -N 4 /dev/urandom | tr -d " ")
-			qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk /dev/$dst_disk > /dev/null
+			if [ partition_type = "mbr" ]; then
+				new_id=$(od -A n -t x -N 4 /dev/urandom | tr -d " ")
+				qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk /dev/$dst_disk > /dev/null
+			else
+				new_id=$(uuidgen)
+				sgdisk --disk-guid=$new_id /dev/$dst_disk
+			fi
 			exit 1
 		fi
 	done
@@ -1551,9 +1564,15 @@ Use -U for unattended even if initializing.
 	printf "  Changing destination Disk ID ..."
 	sync
 	sleep 2
-
+set -x
+if [ partition_type = "mbr" ]; then 
 	new_id=$(od -A n -t x -N 4 /dev/urandom | tr -d " ")
 	qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk /dev/$dst_disk > /dev/null
+else
+	new_id=$(uuidgen)
+	sgdisk --disk-guid=$new_id /dev/$dst_disk
+fi
+set +x
 	sync
 	sleep 2
 	partprobe "/dev/$dst_disk"
@@ -1713,8 +1732,12 @@ dst_disk_ID=${line#*x}
 if [ "$dst_disk_ID" == "$src_disk_ID" ]
 then
 	qecho "Destination disk has same Disk ID as source, changing it."
-	new_id=$(od -A n -t x -N 4 /dev/urandom | tr -d " ")
+if [ partition_type = "mbr" ]; then 
 	qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk /dev/$dst_disk | grep changed
+else
+	new_id=$(uuidgen)
+	sgdisk --disk-guid=$new_id /dev/$dst_disk
+fi
 	sync
 	sleep 2
 	partprobe "/dev/$dst_disk"
@@ -1804,7 +1827,7 @@ then
 		cp $cmdline_txt ${clone}/${cmdlinedir}/cmdline.boot
 		cmdline_txt=${clone}/${cmdlinedir}/cmdline.boot
 	fi
-	if grep -q $src_disk_ID $cmdline_txt
+	if grep -q "$src_disk_ID" $cmdline_txt
 	then
 		qecho "Editing $cmdline_txt PARTUUID to use $dst_disk_ID"
 		sed -i "s/${src_disk_ID}/${dst_disk_ID}/" "$cmdline_txt"
@@ -1834,7 +1857,6 @@ fi
 rm -f $clone/etc/udev/rules.d/70-persistent-net.rules
 
 dst_root_vol_name=${dst_label[$root_part_num]}
-
 if ((have_grub))
 then
 	qecho "grub-install --root-directory=$clone /dev/$dst_disk"

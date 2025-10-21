@@ -1564,7 +1564,6 @@ Use -U for unattended even if initializing.
 	printf "  Changing destination Disk ID ..."
 	sync
 	sleep 2
-set -x
 if [ partition_type = "mbr" ]; then 
 	new_id=$(od -A n -t x -N 4 /dev/urandom | tr -d " ")
 	qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk /dev/$dst_disk > /dev/null
@@ -1572,7 +1571,6 @@ else
 	new_id=$(uuidgen)
 	sgdisk --disk-guid=$new_id /dev/$dst_disk
 fi
-set +x
 	sync
 	sleep 2
 	partprobe "/dev/$dst_disk"

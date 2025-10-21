@@ -10,7 +10,7 @@
 # This updated code is located in a fork of Bill Wilson's git repository
 # at https://github.com/geerlingguy/rpi-clone
 
-version=2.0.26
+version=2.0.26-issue_73
 
 # prefix debug statements with line numbers when -x is used
 declare -r PS4='|${LINENO}> \011${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
@@ -65,8 +65,9 @@ confirm()
 	}
 
 # sfdisk is in fdisk package
-commands="rsync parted fdisk findmnt column fsck.vfat"
-packages="rsync parted util-linux mount bsdmainutils dosfstools"
+# sgdisk is in gdisk package
+commands="rsync parted fdisk findmnt column fsck.vfat sgdisk"
+packages="rsync parted util-linux mount bsdmainutils dosfstools gdisk"
 need_packages=""
 
 idx=1

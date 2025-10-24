@@ -66,8 +66,8 @@ confirm()
 
 # sfdisk is in fdisk package
 # sgdisk is in gdisk package
-commands="rsync parted fdisk findmnt column fsck.vfat sgdisk"
-packages="rsync parted util-linux mount bsdmainutils dosfstools gdisk"
+commands="rsync parted fdisk findmnt column fsck.vfat"
+packages="rsync parted util-linux mount bsdmainutils dosfstools"
 need_packages=""
 
 idx=1
@@ -656,8 +656,6 @@ get_src_disk()
 	printf -v "${2}" "%s" "$disk"
 	printf -v "${3}" "%s" "$num"
 	}
-
-
 echo $PGM Version: $version
 
 # ==== source (booted) disk info and default mount list
@@ -674,6 +672,13 @@ if fdisk -l $src_boot_dev | grep -q gpt; then
         partition_type="mbr"
 else
         partition_type="gpt"
+        if ! command -v uuidgen &>/dev/null; then
+			echo "Missing uuidgen. Install uuid-runtime package"
+			exit 1
+        if ! command -v sgdisk &>/dev/null; then
+			echo "Missing sgdisk. Install gdisk package"
+			exit 1
+		fi
 fi
 
 if [ "$src_boot_dev" == "" ]
